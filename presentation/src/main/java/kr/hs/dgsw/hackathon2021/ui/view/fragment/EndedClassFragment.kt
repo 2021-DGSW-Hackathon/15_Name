@@ -1,0 +1,103 @@
+package kr.hs.dgsw.hackathon2021.ui.view.fragment
+
+import androidx.lifecycle.ViewModelProvider
+import android.os.Bundle
+import androidx.fragment.app.Fragment
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.navigation.NavController
+import androidx.navigation.fragment.findNavController
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import kr.hs.dgsw.domain.usecase.lecture.GetAllClassUseCase
+import kr.hs.dgsw.hackathon2021.R
+import kr.hs.dgsw.hackathon2021.databinding.FragmentEndedClassBinding
+import kr.hs.dgsw.hackathon2021.di.application.MyDaggerApplication
+import kr.hs.dgsw.hackathon2021.ui.view.adapter.LectureAdapter
+import kr.hs.dgsw.hackathon2021.ui.viewmodel.factory.ClassViewModelFactory
+import kr.hs.dgsw.hackathon2021.ui.viewmodel.fragment.ClassViewModel
+import javax.inject.Inject
+
+class EndedClassFragment : Fragment() {
+
+    @Inject
+    lateinit var getAllClassUseCase: GetAllClassUseCase
+
+    companion object {
+        private const val state = 2
+        fun newInstance() = EndedClassFragment()
+    }
+
+    private lateinit var binding: FragmentEndedClassBinding
+    private lateinit var viewModel: ClassViewModel
+
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
+    private val adapter: LectureAdapter = LectureAdapter()
+
+    private val navController: NavController by lazy {
+        findNavController()
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        binding = FragmentEndedClassBinding.inflate(inflater)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (requireActivity().application as MyDaggerApplication).daggerMyComponent.inject(this)
+        viewModel = ViewModelProvider(this, ClassViewModelFactory(getAllClassUseCase))[ClassViewModel::class.java]
+
+        init()
+        setVisibility()
+
+        adapter.setOnClickLectureListener {
+            navigateToLectureDetail(it)
+        }
+        swipeRefreshLayout.setOnRefreshListener {
+            viewModel.getAllClass(state)
+        }
+    }
+
+
+    private fun navigateToLectureDetail(id: Int) {
+        val bundle = Bundle()
+        bundle.putInt("lectureId", id)
+        navController.navigate(R.id.action_homeFragment_to_lectureDetailFragment, bundle)
+    }
+
+    private fun setVisibility() {
+        if(adapter.itemCount <= 0) {
+            binding.imgNoData.visibility = View.VISIBLE
+            binding.tvNoData.visibility = View.VISIBLE
+            binding.rvRecruitingClass.visibility = View.GONE
+        } else {
+            binding.imgNoData.visibility = View.GONE
+            binding.tvNoData.visibility = View.GONE
+            binding.rvRecruitingClass.visibility = View.VISIBLE
+        }
+    }
+
+    private fun init() {
+        viewModel = ViewModelProvider(this, ClassViewModelFactory(getAllClassUseCase))[ClassViewModel::class.java]
+
+        viewModel.getAllClass(state)
+
+        viewModel.classList.observe(viewLifecycleOwner) {
+            adapter.setList(it)
+            setVisibility()
+            swipeRefreshLayout.isRefreshing = false
+        }
+
+        viewModel.isFailure.observe(viewLifecycleOwner) {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+        }
+
+        binding.rvRecruitingClass.adapter = adapter
+        swipeRefreshLayout = binding.srlEnded
+    }
+}
